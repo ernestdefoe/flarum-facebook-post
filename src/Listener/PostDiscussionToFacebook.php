@@ -10,19 +10,11 @@ use Psr\Log\LoggerInterface;
 
 class PostDiscussionToFacebook
 {
-    protected SettingsRepositoryInterface $settings;
-    protected UrlGenerator $url;
-    protected LoggerInterface $logger;
-
     public function __construct(
-        SettingsRepositoryInterface $settings,
-        UrlGenerator $url,
-        LoggerInterface $logger
-    ) {
-        $this->settings = $settings;
-        $this->url = $url;
-        $this->logger = $logger;
-    }
+        protected SettingsRepositoryInterface $settings,
+        protected UrlGenerator $url,
+        protected LoggerInterface $logger,
+    ) {}
 
     public function handle(Posted $event): void
     {
@@ -45,18 +37,26 @@ class PostDiscussionToFacebook
         }
 
         $discussion = $post->discussion;
-        $title      = $discussion->title;
-        $link       = $this->url->to('forum')->route('discussion', ['id' => $discussion->id . '-' . $discussion->slug]);
+        $link       = $this->url->to('forum')->route('discussion', [
+            'id' => $discussion->id . '-' . $discussion->slug,
+        ]);
 
         $contentHtml = $post->formatContent();
         $imageUrl    = $this->extractFirstImage($contentHtml);
+
+        if ($imageUrl === null) {
+            $defaultImage = $this->settings->get('ernestdefoe-facebook-post.default_image_url');
+            if ($defaultImage) {
+                $imageUrl = $defaultImage;
+            }
+        }
 
         $contentRaw = strip_tags($contentHtml);
         $snippet    = mb_strlen($contentRaw) > 200
             ? mb_substr($contentRaw, 0, 197) . '…'
             : $contentRaw;
 
-        $message = "📢 {$title}\n\n{$snippet}\n\n🔗 {$link}";
+        $message = "📢 {$discussion->title}\n\n{$snippet}\n\n🔗 {$link}";
 
         $this->publishToFacebook($pageId, $accessToken, $message, $link, $imageUrl);
     }
@@ -121,7 +121,7 @@ class PostDiscussionToFacebook
             $this->logger->error("[FacebookPost] API error (HTTP {$httpCode}): {$errMsg}");
         } else {
             $postId = Arr::get($decoded, 'id', 'unknown');
-            $this->logger->info("[FacebookPost] Successfully posted to Facebook. Post ID: {$postId}");
+            $this->logger->info("[FacebookPost] Successfully posted. Post ID: {$postId}");
         }
     }
 }
