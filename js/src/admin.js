@@ -2,7 +2,7 @@ import app from 'flarum/admin/app';
 import DefaultImageUpload from './components/DefaultImageUpload';
 
 app.initializers.add('ernestdefoe-facebook-post', () => {
-  app.extensionData
+  app.registry
     .for('ernestdefoe-facebook-post')
 
     .registerSetting({
