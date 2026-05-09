@@ -4,8 +4,8 @@
   "description": "Admin JS for Facebook auto-post extension",
   "private": true,
   "scripts": {
-    "dev": "flarum-webpack --watch",
-    "build": "flarum-webpack"
+    "dev": "webpack --watch",
+    "build": "webpack"
   },
   "devDependencies": {
     "flarum-webpack-config": "^3.0.0",
