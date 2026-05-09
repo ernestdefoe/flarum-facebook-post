@@ -1,12 +1,11 @@
 export { default as extend } from './extend';
 
-import app from 'flarum/admin/app';
+import app from '@flarum/core/admin';
 
 app.initializers.add('ernestdefoe-facebook-post', () => {
   app.extensionData
     .for('ernestdefoe-facebook-post')
 
-    // ── Settings fields ──────────────────────────────────────────────────────
     .registerSetting({
       setting: 'ernestdefoe-facebook-post.enabled',
       label: app.translator.trans('ernestdefoe-facebook-post.admin.settings.enabled_label'),
@@ -30,7 +29,6 @@ app.initializers.add('ernestdefoe-facebook-post', () => {
       placeholder: 'EAAxxxxxxxx…',
     })
 
-    // ── Permission ───────────────────────────────────────────────────────────
     .registerPermission(
       {
         icon: 'fab fa-facebook',
