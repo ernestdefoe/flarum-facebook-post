@@ -48,7 +48,7 @@ class PostDiscussionToFacebook
         $title      = $discussion->title;
         $link       = $this->url->to('forum')->route('discussion', ['id' => $discussion->id . '-' . $discussion->slug]);
 
-        $contentHtml = $post->formatContent($post);
+        $contentHtml = $post->formatContent();
         $imageUrl    = $this->extractFirstImage($contentHtml);
 
         $contentRaw = strip_tags($contentHtml);
