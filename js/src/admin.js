@@ -1,6 +1,6 @@
 export { default as extend } from './extend';
 
-import app from '@flarum/core/admin';
+import app from 'flarum/admin/app';
 
 app.initializers.add('ernestdefoe-facebook-post', () => {
   app.extensionData
