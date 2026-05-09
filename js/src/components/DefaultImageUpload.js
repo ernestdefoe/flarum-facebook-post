@@ -42,7 +42,7 @@ export default class DefaultImageUpload extends Component {
     formData.append('image', file);
 
     try {
-      const response = await fetch(app.forum.attribute('apiUrl') + '/facebook-post/default-image', {
+      const response = await fetch(app.apiUrl() + '/facebook-post/default-image', {
         method: 'POST',
         headers: {
           'X-CSRF-Token': app.session.csrfToken,
