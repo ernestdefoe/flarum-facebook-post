@@ -26,14 +26,12 @@ class PostDiscussionToFacebook
 
     public function handle(Posted $event): void
     {
-        // Only act on the first post of a new discussion (number === 1)
         $post = $event->post;
 
         if ((int) $post->number !== 1) {
             return;
         }
 
-        // Check extension is enabled
         if (!$this->settings->get('ernestdefoe-facebook-post.enabled')) {
             return;
         }
@@ -50,25 +48,40 @@ class PostDiscussionToFacebook
         $title      = $discussion->title;
         $link       = $this->url->to('forum')->route('discussion', ['id' => $discussion->id . '-' . $discussion->slug]);
 
-        // Strip HTML tags from post content for the snippet
-        $contentRaw = strip_tags($post->formatContent($post));
+        $contentHtml = $post->formatContent($post);
+        $imageUrl    = $this->extractFirstImage($contentHtml);
+
+        $contentRaw = strip_tags($contentHtml);
         $snippet    = mb_strlen($contentRaw) > 200
             ? mb_substr($contentRaw, 0, 197) . '…'
             : $contentRaw;
 
         $message = "📢 {$title}\n\n{$snippet}\n\n🔗 {$link}";
 
-        $this->publishToFacebook($pageId, $accessToken, $message, $link);
+        $this->publishToFacebook($pageId, $accessToken, $message, $link, $imageUrl);
     }
 
-    /**
-     * Send a post to the Facebook Graph API.
-     */
+    private function extractFirstImage(string $html): ?string
+    {
+        $dom = new \DOMDocument();
+        @$dom->loadHTML($html, LIBXML_NOERROR);
+        $imgs = $dom->getElementsByTagName('img');
+
+        if ($imgs->length === 0) {
+            return null;
+        }
+
+        $src = $imgs->item(0)->getAttribute('src');
+
+        return ($src !== '') ? $src : null;
+    }
+
     private function publishToFacebook(
         string $pageId,
         string $accessToken,
         string $message,
-        string $link
+        string $link,
+        ?string $imageUrl = null
     ): void {
         $endpoint = "https://graph.facebook.com/v19.0/{$pageId}/feed";
 
@@ -77,6 +90,10 @@ class PostDiscussionToFacebook
             'link'         => $link,
             'access_token' => $accessToken,
         ];
+
+        if ($imageUrl !== null) {
+            $payload['picture'] = $imageUrl;
+        }
 
         $ch = curl_init($endpoint);
         curl_setopt_array($ch, [
