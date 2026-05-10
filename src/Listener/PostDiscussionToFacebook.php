@@ -62,9 +62,9 @@ class PostDiscussionToFacebook
             ? mb_substr($contentRaw, 0, 197) . '…'
             : $contentRaw;
 
-        $message = "📢 {$discussion->title}\n\n{$snippet}\n\n🔗 {$link}";
+        $message = "📢 {$discussion->title}\n\n{$snippet}";
 
-        $this->publishToFacebook($targetId, $accessToken, $message, $targetLabel);
+        $this->publishToFacebook($targetId, $accessToken, $message, $link, $targetLabel);
     }
 
     private function passesTagFilter(object $discussion): bool
@@ -73,7 +73,7 @@ class PostDiscussionToFacebook
         $allowedIds = json_decode($json, true);
 
         if (empty($allowedIds)) {
-            return true; // no filter configured — post everything
+            return true;
         }
 
         $allowedIds = array_map('strval', $allowedIds);
@@ -82,7 +82,6 @@ class PostDiscussionToFacebook
             $tagIds = $discussion->tags->pluck('id')->map(fn($id) => (string) $id)->toArray();
             return !empty(array_intersect($allowedIds, $tagIds));
         } catch (\Throwable) {
-            // flarum/tags not installed — allow all
             return true;
         }
     }
@@ -91,12 +90,14 @@ class PostDiscussionToFacebook
         string $targetId,
         string $accessToken,
         string $message,
+        string $link,
         string $targetLabel = 'Page'
     ): void {
         $endpoint = "https://graph.facebook.com/v19.0/{$targetId}/feed";
 
         $payload = [
             'message'      => $message,
+            'link'         => $link,
             'access_token' => $accessToken,
         ];
 
