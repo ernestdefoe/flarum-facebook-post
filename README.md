@@ -1,6 +1,6 @@
 # Flarum Facebook Page Auto-Post
 
-Automatically publishes a link + excerpt to your Facebook Page whenever a new discussion is created on your Flarum 2 forum.
+Automatically publishes an excerpt and link to your Facebook Page whenever a new discussion is created on your Flarum 2 forum.
 
 ---
 
@@ -8,7 +8,7 @@ Automatically publishes a link + excerpt to your Facebook Page whenever a new di
 
 - Posts the discussion title, a short excerpt, and a direct link to your Facebook Page
 - Toggle on/off from the Admin panel — no code changes needed
-- Stores the Page Access Token securely in Flarum's encrypted settings store
+- Stores the Page Access Token securely in Flarum's settings store
 - Logs success and errors to Flarum's application log (`storage/logs/`)
 
 ---
@@ -25,73 +25,102 @@ Automatically publishes a link + excerpt to your Facebook Page whenever a new di
 
 ## Installation
 
-### 1. Install via Composer
-
 ```bash
 composer require ernestdefoe/flarum-facebook-post
 php flarum migrate
 php flarum cache:clear
 ```
 
-### 2. Build the admin JS
+---
 
-```bash
-cd extensions/yourvendor-facebook-post/js
-npm install
-npm run build
-```
+## Facebook Setup
+
+This extension requires a Facebook Developer App and a Page Access Token. Follow every step carefully — skipping any step is the most common cause of errors.
+
+### Step 1 — Create a Facebook Developer Account
+
+1. Go to **developers.facebook.com**
+2. Click **Get Started** and log in with the Facebook account that manages your Page
+3. Complete the free developer registration
 
 ---
 
-## Configuration
+### Step 2 — Create a Facebook App
 
-### Step A — Create a Meta App
+1. Go to **My Apps → Create App**
+2. When asked what the app will do, select **Other → Next**
+3. For app type select **None → Next**
+4. Give it any name (e.g. "My Forum") and click **Create App**
 
-1. Go to [Meta for Developers](https://developers.facebook.com) and create a new App (type: **Business**).
-2. Add the **Facebook Login for Business** and **Pages API** products.
+---
 
-### Step B — Generate a Page Access Token
+### Step 3 — Add Facebook Login to the App
 
-1. In the App Dashboard → **Tools → Graph API Explorer**.
-2. Select your App and your **Facebook Page** from the dropdowns.
-3. Request these permissions:
-   - `pages_manage_posts`
+1. Inside the App Dashboard, click **Add Product**
+2. Find **Facebook Login** and click **Set Up → Web**
+3. Enter your forum URL and save
+
+This step is required before permissions can be granted to tokens.
+
+---
+
+### Step 4 — Get Your Page ID (Important — read carefully)
+
+The numeric ID in your Facebook Page URL (`profile.php?id=XXXXXXX`) is **not** always the correct API Page ID. To get the real API Page ID:
+
+1. In the App Dashboard go to **Tools → Graph API Explorer**
+2. Click **Generate Access Token** and add these permissions:
+   - `pages_show_list`
    - `pages_read_engagement`
-4. Click **Generate Access Token** and go through the OAuth flow.
-5. **Convert to a long-lived / never-expiring token** using the Token Debugger:
-   - Exchange the short-lived token for a long-lived User token (60 days).
-   - Use the long-lived User token to request a **Page token** — Page tokens do not expire.
+   - `pages_manage_posts`
+   - `business_management`
+3. Approve and log in
+4. Make sure the method is set to **GET**
+5. In the query box type `me/businesses` and click **Submit**
+6. You will see one or more Business Accounts listed — note the `id` of each one
+7. For each business ID, run: `{business-id}/owned_pages?fields=id,name,access_token`
+8. Find your Page in the results — the `id` field is your real **API Page ID** and the `access_token` field is your **Page Access Token**
 
-```
-GET https://graph.facebook.com/v19.0/{page-id}?fields=access_token&access_token={long-lived-user-token}
-```
+> **Why this matters:** New Page Experience pages have a different internal API ID from the number shown in the browser URL. Using the wrong ID causes `(#100) The global id is not allowed` errors.
 
-### Step C — Configure the Extension
+---
 
-1. In Flarum Admin → **Extensions → Facebook Page Auto-Post**.
+### Step 5 — Extend the Token
+
+The token from Step 4 may be short-lived. To get a long-lived token:
+
+1. Copy the `access_token` from the `owned_pages` results
+2. Go to **developers.facebook.com/tools/debug/accesstoken** and paste it in
+3. Click **Extend Access Token** and copy the new token
+
+---
+
+### Step 6 — Configure the Extension
+
+1. Go to your Flarum Admin panel → **Extensions → Facebook Page Auto-Post**
 2. Fill in:
-   - **Facebook Page ID** — the numeric ID of your Page.
-   - **Page Access Token** — the never-expiring Page token from Step B.
-3. Toggle **Enable Facebook Auto-Post** to ON.
-4. Save.
+   - **Facebook Page ID** — the `id` from the `owned_pages` results (Step 4)
+   - **Page Access Token** — the extended token from Step 5
+3. Toggle **Enable Facebook Auto-Post** to ON
+4. Click **Save**
 
 ---
 
 ## How It Works
 
 ```
-New Post event (Flarum)
+New discussion created (Flarum)
         │
         ▼
 PostDiscussionToFacebook::handle()
         │
-        ├── Is this post number 1? (first post = new discussion)
+        ├── Is this post number 1? (first post = new discussion only)
         ├── Is the extension enabled?
         ├── Are Page ID + Access Token set?
         │
         ▼
 POST https://graph.facebook.com/v19.0/{pageId}/feed
-   { message, link, access_token }
+   { message, access_token }
         │
         ▼
 Facebook Page Feed ✓
@@ -99,18 +128,23 @@ Facebook Page Feed ✓
 
 Only the **first post** of each discussion triggers a Facebook update. Replies are ignored.
 
+Facebook automatically generates a link preview from the discussion URL's Open Graph tags.
+
 ---
 
 ## Troubleshooting
 
-| Symptom | Check |
+| Symptom | Likely Cause |
 |---|---|
-| Nothing posted | Verify extension is enabled and token/page ID are saved |
-| `API error (HTTP 190)` | Token is expired — regenerate a never-expiring Page token |
-| `API error (HTTP 200)` | Token lacks `pages_manage_posts` permission |
-| cURL errors | Ensure the server can reach `graph.facebook.com` (port 443) |
+| Nothing posted, no log entry | Extension not enabled or token/page ID not saved |
+| `API error (HTTP 400): Malformed access token` | Token was copied incorrectly — re-copy it with no extra spaces |
+| `API error (HTTP 400): The global id is not allowed` | Wrong Page ID — use the `id` from `owned_pages`, not the URL number |
+| `API error (HTTP 403): Missing permission` | Token does not have `pages_manage_posts` + `pages_read_engagement` — regenerate with all required permissions |
+| `API error (HTTP 400): #240 Requires a valid user` | Token has expired — generate a new one and extend it |
+| `me/accounts returns empty` | Page is managed via Business Suite — use `me/businesses` then `{business-id}/owned_pages` instead |
+| cURL errors | Server cannot reach `graph.facebook.com` on port 443 |
 
-Logs are written to `storage/logs/flarum.log`.
+Logs are written to `storage/logs/flarum.log`. Search for `[FacebookPost]` to find relevant entries.
 
 ---
 
