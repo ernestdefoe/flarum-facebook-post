@@ -6,11 +6,13 @@ Automatically publishes an excerpt and link to a Facebook **Page** or **Group** 
 
 ## Features
 
-- Posts the discussion title, a short excerpt, and a direct link to your chosen Facebook destination
+- Posts the discussion title, a short excerpt, and a link to your chosen Facebook destination
+- **Image always displays** — posts as a photo upload so the image appears regardless of Facebook domain verification
 - Supports both **Facebook Pages** (Page Access Token) and **Facebook Groups** (User Access Token)
 - Toggle on/off from the Admin panel — no code changes needed
 - Credentials stored securely in Flarum's settings store
 - Optional tag filter — only post discussions in specific categories
+- Works with [ernestdefoe/og-image](https://github.com/ernestdefoe/og-image) to use a default image when the post has no embedded images
 - Logs success and errors to Flarum's application log (`storage/logs/`)
 
 ---
@@ -211,16 +213,26 @@ PostDiscussionToFacebook::handle()
         ├── Does the discussion pass the tag filter?
         │
         ▼
-POST https://graph.facebook.com/v19.0/{id}/feed
-   { message, access_token }
+Is an image available?
+(first <img> in post content, or ernestdefoe/og-image default image)
         │
-        ├──► Facebook Page Feed ✓  (destination_type = page)
-        └──► Facebook Group Feed ✓ (destination_type = group)
+        ├── YES ──► POST /{id}/photos  { url, caption, access_token }
+        │                  │
+        │           success? ──► Photo post with image on Facebook ✓
+        │           failure? ──► falls back to link post (see below)
+        │
+        └── NO ───► POST /{id}/feed  { message, link, access_token }
+                           │
+                    Facebook Page/Group feed post with link preview ✓
 ```
 
 Only the **first post** of each discussion triggers a Facebook update. Replies are ignored.
 
-Facebook automatically generates a link preview from the discussion URL's Open Graph tags.
+### Why photo posts?
+
+Facebook suppresses link preview images for API posts from apps that have not completed Meta Business Manager domain verification. Posting via the `/photos` endpoint uploads the image directly to Facebook, so the image always appears regardless of whether your domain is verified.
+
+If the photo upload fails (e.g. the image URL is not publicly accessible), the extension automatically falls back to a standard link post and logs the reason.
 
 ---
 
@@ -238,8 +250,23 @@ Facebook automatically generates a link preview from the discussion URL's Open G
 | `API error (HTTP 400): User must be an admin` | The account that generated the Group token is not an admin of the Group |
 | `me/accounts returns empty` | Page managed via Business Suite — use `me/businesses` then `{business-id}/owned_pages` |
 | cURL errors | Server cannot reach `graph.facebook.com` on port 443 |
+| Post created but no image | Post has no embedded images and no default image is set — install `ernestdefoe/og-image` and configure a default image URL |
+| `Photo post API error` then `Falling back to link post` in logs | Image URL is not publicly accessible or Facebook could not fetch it — check the URL works without authentication |
 
 Logs are written to `storage/logs/flarum.log`. Search for `[FacebookPost]` to find relevant entries.
+
+---
+
+## Image display
+
+When a new discussion is posted the extension looks for an image in this order:
+
+1. The first `<img>` found in the post content
+2. The **Default OG Image** from the [ernestdefoe/og-image](https://github.com/ernestdefoe/og-image) extension settings
+
+If an image is found it is posted via Facebook's `/photos` endpoint, which uploads the image directly and guarantees it displays on the Page or Group post. If no image is found (or the photo upload fails) it falls back to a standard link post, which relies on Facebook scraping the OG tags from your forum URL.
+
+To ensure a fallback image is always available, install `ernestdefoe/og-image` and set a **Default OG Image URL** in its settings.
 
 ---
 
