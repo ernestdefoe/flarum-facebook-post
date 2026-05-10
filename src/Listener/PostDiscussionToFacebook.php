@@ -37,6 +37,12 @@ class PostDiscussionToFacebook
         }
 
         $discussion = $post->discussion;
+
+        if (!$this->passesTagFilter($discussion)) {
+            $this->logger->info('[FacebookPost] Skipped — discussion tag not in allowed list.');
+            return;
+        }
+
         $link       = $this->url->to('forum')->route('discussion', [
             'id' => $discussion->id . '-' . $discussion->slug,
         ]);
@@ -50,6 +56,26 @@ class PostDiscussionToFacebook
         $message = "📢 {$discussion->title}\n\n{$snippet}\n\n🔗 {$link}";
 
         $this->publishToFacebook($pageId, $accessToken, $message);
+    }
+
+    private function passesTagFilter(object $discussion): bool
+    {
+        $json       = $this->settings->get('ernestdefoe-facebook-post.allowed_tags', '[]');
+        $allowedIds = json_decode($json, true);
+
+        if (empty($allowedIds)) {
+            return true; // no filter configured — post everything
+        }
+
+        $allowedIds = array_map('strval', $allowedIds);
+
+        try {
+            $tagIds = $discussion->tags->pluck('id')->map(fn($id) => (string) $id)->toArray();
+            return !empty(array_intersect($allowedIds, $tagIds));
+        } catch (\Throwable) {
+            // flarum/tags not installed — allow all
+            return true;
+        }
     }
 
     private function publishToFacebook(

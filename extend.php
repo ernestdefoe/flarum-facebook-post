@@ -13,5 +13,6 @@ return [
         ->listen(Posted::class, PostDiscussionToFacebook::class),
 
     (new Extend\Settings())
-        ->default('ernestdefoe-facebook-post.enabled', false),
+        ->default('ernestdefoe-facebook-post.enabled', false)
+        ->default('ernestdefoe-facebook-post.allowed_tags', '[]'),
 ];
