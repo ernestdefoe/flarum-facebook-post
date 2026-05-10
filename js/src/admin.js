@@ -8,6 +8,6 @@ app.initializers.add('ernestdefoe-facebook-post', () => {
     // 'permissions' (priority 60). We slot the tag selector between them.
     extend(ExtensionPage.prototype, 'sections', function (items) {
         if (this.attrs.id !== 'ernestdefoe-facebook-post') return;
-        items.add('tag-filter', m(TagSelector), 80);
+        items.add('tag-filter', m('.ExtensionPage-settings', m(TagSelector)), 80);
     });
 });

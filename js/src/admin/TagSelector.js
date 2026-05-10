@@ -64,7 +64,7 @@ export default class TagSelector extends Component {
     }
 
     view() {
-        return m('.FacebookTagSelector-section', m('.Form-group.FacebookTagSelector', [
+        return m('.Form-group.FacebookTagSelector', [
             m('label.label', 'Post to Facebook for Primary Tags'),
             m('.helpText', [
                 'Select which primary tags trigger a Facebook post. ',
@@ -92,6 +92,6 @@ export default class TagSelector extends Component {
                         })
                     ),
             this.saving ? m('span.FacebookTagSelector-status', 'Saving…') : null,
-        ]));
+        ]);
     }
 }
