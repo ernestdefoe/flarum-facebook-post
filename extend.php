@@ -14,5 +14,6 @@ return [
 
     (new Extend\Settings())
         ->default('ernestdefoe-facebook-post.enabled', false)
+        ->default('ernestdefoe-facebook-post.destination_type', 'page')
         ->default('ernestdefoe-facebook-post.allowed_tags', '[]'),
 ];

@@ -28,11 +28,20 @@ class PostDiscussionToFacebook
             return;
         }
 
-        $accessToken = $this->settings->get('ernestdefoe-facebook-post.page_access_token');
-        $pageId      = $this->settings->get('ernestdefoe-facebook-post.page_id');
+        $destinationType = $this->settings->get('ernestdefoe-facebook-post.destination_type', 'page');
 
-        if (!$accessToken || !$pageId) {
-            $this->logger->warning('[FacebookPost] Missing Page Access Token or Page ID — post skipped.');
+        if ($destinationType === 'group') {
+            $accessToken = $this->settings->get('ernestdefoe-facebook-post.group_access_token');
+            $targetId    = $this->settings->get('ernestdefoe-facebook-post.group_id');
+            $targetLabel = 'Group';
+        } else {
+            $accessToken = $this->settings->get('ernestdefoe-facebook-post.page_access_token');
+            $targetId    = $this->settings->get('ernestdefoe-facebook-post.page_id');
+            $targetLabel = 'Page';
+        }
+
+        if (!$accessToken || !$targetId) {
+            $this->logger->warning("[FacebookPost] Missing Facebook {$targetLabel} access token or ID — post skipped.");
             return;
         }
 
@@ -43,7 +52,7 @@ class PostDiscussionToFacebook
             return;
         }
 
-        $link       = $this->url->to('forum')->route('discussion', [
+        $link = $this->url->to('forum')->route('discussion', [
             'id' => $discussion->id . '-' . $discussion->slug,
         ]);
 
@@ -55,7 +64,7 @@ class PostDiscussionToFacebook
 
         $message = "📢 {$discussion->title}\n\n{$snippet}\n\n🔗 {$link}";
 
-        $this->publishToFacebook($pageId, $accessToken, $message);
+        $this->publishToFacebook($targetId, $accessToken, $message, $targetLabel);
     }
 
     private function passesTagFilter(object $discussion): bool
@@ -79,11 +88,12 @@ class PostDiscussionToFacebook
     }
 
     private function publishToFacebook(
-        string $pageId,
+        string $targetId,
         string $accessToken,
-        string $message
+        string $message,
+        string $targetLabel = 'Page'
     ): void {
-        $endpoint = "https://graph.facebook.com/v19.0/{$pageId}/feed";
+        $endpoint = "https://graph.facebook.com/v19.0/{$targetId}/feed";
 
         $payload = [
             'message'      => $message,
@@ -113,10 +123,10 @@ class PostDiscussionToFacebook
 
         if ($httpCode !== 200 || !empty($decoded['error'])) {
             $errMsg = Arr::get($decoded, 'error.message', $response);
-            $this->logger->error("[FacebookPost] API error (HTTP {$httpCode}): {$errMsg}");
+            $this->logger->error("[FacebookPost] {$targetLabel} API error (HTTP {$httpCode}): {$errMsg}");
         } else {
             $postId = Arr::get($decoded, 'id', 'unknown');
-            $this->logger->info("[FacebookPost] Successfully posted. Post ID: {$postId}");
+            $this->logger->info("[FacebookPost] Successfully posted to {$targetLabel}. Post ID: {$postId}");
         }
     }
 }
