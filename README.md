@@ -17,7 +17,7 @@ Automatically publishes an excerpt and link to your Facebook Page whenever a new
 
 | Dependency | Version |
 |---|---|
-| PHP | ≥ 8.1 |
+| PHP |  8.3+ |
 | Flarum | ^2.0 |
 | PHP extension | `curl` |
 
