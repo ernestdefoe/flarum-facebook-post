@@ -4,12 +4,10 @@ import ExtensionPage from 'flarum/admin/components/ExtensionPage';
 import TagSelector from './admin/TagSelector';
 
 app.initializers.add('ernestdefoe-facebook-post', () => {
-    extend(ExtensionPage.prototype, 'content', function (content) {
-        const extId = (this.extension && this.extension.id) || this.attrs.id;
-        if (extId !== 'ernestdefoe-facebook-post') return;
-        if (!Array.isArray(content)) return;
-
-        // Insert tag selector between the settings section (0) and permissions section (1)
-        content.splice(1, 0, m(TagSelector));
+    // sections() returns an ItemList with 'content' (priority 100) and
+    // 'permissions' (priority 60). We slot the tag selector between them.
+    extend(ExtensionPage.prototype, 'sections', function (items) {
+        if (this.attrs.id !== 'ernestdefoe-facebook-post') return;
+        items.add('tag-filter', m(TagSelector), 80);
     });
 });
