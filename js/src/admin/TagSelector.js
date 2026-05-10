@@ -64,7 +64,7 @@ export default class TagSelector extends Component {
     }
 
     view() {
-        return m('.Form', m('.Form-group.FacebookTagSelector', [
+        return m('.FacebookTagSelector-section', m('.Form-group.FacebookTagSelector', [
             m('label.label', 'Post to Facebook for Primary Tags'),
             m('.helpText', [
                 'Select which primary tags trigger a Facebook post. ',
