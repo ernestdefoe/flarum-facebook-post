@@ -49,20 +49,22 @@ class PostDiscussionToFacebook
 
         $message = "📢 {$discussion->title}\n\n{$snippet}\n\n🔗 {$link}";
 
-        $this->publishToFacebook($pageId, $accessToken, $message, $link);
+        $this->publishToFacebook($pageId, $accessToken, $message, $link, $discussion->title);
     }
 
     private function publishToFacebook(
         string $pageId,
         string $accessToken,
         string $message,
-        string $link
+        string $link,
+        string $name
     ): void {
         $endpoint = "https://graph.facebook.com/v19.0/{$pageId}/feed";
 
         $payload = [
             'message'      => $message,
             'link'         => $link,
+            'name'         => $name,
             'access_token' => $accessToken,
         ];
 
