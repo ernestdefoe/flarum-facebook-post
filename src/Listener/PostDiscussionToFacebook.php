@@ -42,46 +42,21 @@ class PostDiscussionToFacebook
         ]);
 
         $contentHtml = $post->formatContent();
-        $imageUrl    = $this->extractFirstImage($contentHtml);
-
-        if ($imageUrl === null) {
-            $defaultImage = $this->settings->get('ernestdefoe-facebook-post.default_image_url');
-            if ($defaultImage) {
-                $imageUrl = $defaultImage;
-            }
-        }
-
-        $contentRaw = strip_tags($contentHtml);
-        $snippet    = mb_strlen($contentRaw) > 200
+        $contentRaw  = strip_tags($contentHtml);
+        $snippet     = mb_strlen($contentRaw) > 200
             ? mb_substr($contentRaw, 0, 197) . '…'
             : $contentRaw;
 
         $message = "📢 {$discussion->title}\n\n{$snippet}\n\n🔗 {$link}";
 
-        $this->publishToFacebook($pageId, $accessToken, $message, $link, $imageUrl);
-    }
-
-    private function extractFirstImage(string $html): ?string
-    {
-        $dom = new \DOMDocument();
-        @$dom->loadHTML($html, LIBXML_NOERROR);
-        $imgs = $dom->getElementsByTagName('img');
-
-        if ($imgs->length === 0) {
-            return null;
-        }
-
-        $src = $imgs->item(0)->getAttribute('src');
-
-        return ($src !== '') ? $src : null;
+        $this->publishToFacebook($pageId, $accessToken, $message, $link);
     }
 
     private function publishToFacebook(
         string $pageId,
         string $accessToken,
         string $message,
-        string $link,
-        ?string $imageUrl = null
+        string $link
     ): void {
         $endpoint = "https://graph.facebook.com/v19.0/{$pageId}/feed";
 
@@ -90,10 +65,6 @@ class PostDiscussionToFacebook
             'link'         => $link,
             'access_token' => $accessToken,
         ];
-
-        if ($imageUrl !== null) {
-            $payload['picture'] = $imageUrl;
-        }
 
         $ch = curl_init($endpoint);
         curl_setopt_array($ch, [

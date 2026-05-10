@@ -1,5 +1,4 @@
 import { Admin } from 'flarum/common/extenders';
-import DefaultImageUpload from './components/DefaultImageUpload';
 
 export default [
   new Admin()
@@ -23,7 +22,6 @@ export default [
       help: 'Never-expiring Page Access Token from Meta for Developers.',
       placeholder: 'EAAxxxxxxxx…',
     }))
-    .setting(() => m(DefaultImageUpload))
     .permission(
       () => ({
         icon: 'fab fa-facebook',
