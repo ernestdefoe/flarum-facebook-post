@@ -17,5 +17,11 @@ ernestdefoe-facebook-post:
       group_id_placeholder: "123456789012345"
       group_access_token_label: Group Access Token
       group_access_token_help: "User Access Token with the publish_to_groups permission. Used when Destination Type is Facebook Group."
+    tag_selector:
+      title: Post to Facebook for Primary Tags
+      help: Select which primary tags trigger a Facebook post.
+      help_all: Leave all unchecked to post every new discussion regardless of tag.
+      no_tags: No primary tags found. Install and configure the Flarum Tags extension first.
+      saving: Saving…
     permissions:
       manage: Manage Facebook Auto-Post

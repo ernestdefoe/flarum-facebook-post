@@ -29,7 +29,6 @@ export default class TagSelector extends Component {
     async fetchTags() {
         try {
             const tags = await app.store.find('tags');
-            // Primary tags only — no parent
             this.tags = tags.filter(t => !t.attribute('isChild'));
         } catch {
             this.tags = [];
@@ -65,15 +64,16 @@ export default class TagSelector extends Component {
 
     view() {
         return m('.Form-group.FacebookTagSelector', [
-            m('label.label', 'Post to Facebook for Primary Tags'),
+            m('label.label', app.translator.trans('ernestdefoe-facebook-post.admin.tag_selector.title')),
             m('.helpText', [
-                'Select which primary tags trigger a Facebook post. ',
-                m('strong', 'Leave all unchecked to post every new discussion regardless of tag.'),
+                app.translator.trans('ernestdefoe-facebook-post.admin.tag_selector.help'),
+                ' ',
+                m('strong', app.translator.trans('ernestdefoe-facebook-post.admin.tag_selector.help_all')),
             ]),
             this.loading
                 ? m(LoadingIndicator, { size: 'small' })
                 : this.tags.length === 0
-                    ? m('em.FacebookTagSelector-empty', 'No primary tags found. Install and configure the Flarum Tags extension first.')
+                    ? m('em.FacebookTagSelector-empty', app.translator.trans('ernestdefoe-facebook-post.admin.tag_selector.no_tags'))
                     : m('.FacebookTagSelector-list',
                         this.tags.map(tag => {
                             const id    = String(tag.id());
@@ -91,7 +91,7 @@ export default class TagSelector extends Component {
                             ]);
                         })
                     ),
-            this.saving ? m('span.FacebookTagSelector-status', 'Saving…') : null,
+            this.saving ? m('span.FacebookTagSelector-status', app.translator.trans('ernestdefoe-facebook-post.admin.tag_selector.saving')) : null,
         ]);
     }
 }
