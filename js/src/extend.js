@@ -1,3 +1,4 @@
+import app from 'flarum/admin/app';
 import { Admin } from 'flarum/common/extenders';
 
 export default [
@@ -5,52 +6,50 @@ export default [
     .setting(() => ({
       setting: 'ernestdefoe-facebook-post.enabled',
       type: 'boolean',
-      label: 'Enable Facebook Auto-Post',
-      help: 'When enabled, new discussions will be automatically posted to your chosen Facebook destination.',
+      label: app.translator.trans('ernestdefoe-facebook-post.admin.settings.enabled_label'),
+      help: app.translator.trans('ernestdefoe-facebook-post.admin.settings.enabled_help'),
     }))
     .setting(() => ({
       setting: 'ernestdefoe-facebook-post.destination_type',
       type: 'select',
-      label: 'Destination Type',
-      help: 'Choose whether to post new discussions to a Facebook Page or a Facebook Group.',
+      label: app.translator.trans('ernestdefoe-facebook-post.admin.settings.destination_type_label'),
+      help: app.translator.trans('ernestdefoe-facebook-post.admin.settings.destination_type_help'),
       options: {
-        page: 'Facebook Page',
-        group: 'Facebook Group',
+        page: app.translator.trans('ernestdefoe-facebook-post.admin.settings.destination_type_page'),
+        group: app.translator.trans('ernestdefoe-facebook-post.admin.settings.destination_type_group'),
       },
       default: 'page',
     }))
     .setting(() => ({
       setting: 'ernestdefoe-facebook-post.page_id',
       type: 'text',
-      label: 'Facebook Page ID',
-      help: 'The numeric ID of your Facebook Page (e.g. 123456789012345). Required when Destination Type is "Facebook Page".',
-      placeholder: '123456789012345',
+      label: app.translator.trans('ernestdefoe-facebook-post.admin.settings.page_id_label'),
+      help: app.translator.trans('ernestdefoe-facebook-post.admin.settings.page_id_help'),
+      placeholder: app.translator.trans('ernestdefoe-facebook-post.admin.settings.page_id_placeholder'),
     }))
     .setting(() => ({
       setting: 'ernestdefoe-facebook-post.page_access_token',
       type: 'password',
-      label: 'Page Access Token',
-      help: 'Never-expiring Page Access Token from Meta for Developers (requires pages_manage_posts permission). Used when Destination Type is "Facebook Page".',
-      placeholder: 'EAAxxxxxxxx…',
+      label: app.translator.trans('ernestdefoe-facebook-post.admin.settings.page_access_token_label'),
+      help: app.translator.trans('ernestdefoe-facebook-post.admin.settings.page_access_token_help'),
     }))
     .setting(() => ({
       setting: 'ernestdefoe-facebook-post.group_id',
       type: 'text',
-      label: 'Facebook Group ID',
-      help: 'The numeric ID of your Facebook Group. Required when Destination Type is "Facebook Group".',
-      placeholder: '123456789012345',
+      label: app.translator.trans('ernestdefoe-facebook-post.admin.settings.group_id_label'),
+      help: app.translator.trans('ernestdefoe-facebook-post.admin.settings.group_id_help'),
+      placeholder: app.translator.trans('ernestdefoe-facebook-post.admin.settings.group_id_placeholder'),
     }))
     .setting(() => ({
       setting: 'ernestdefoe-facebook-post.group_access_token',
       type: 'password',
-      label: 'Group Access Token',
-      help: 'User Access Token with the publish_to_groups permission. Used when Destination Type is "Facebook Group".',
-      placeholder: 'EAAxxxxxxxx…',
+      label: app.translator.trans('ernestdefoe-facebook-post.admin.settings.group_access_token_label'),
+      help: app.translator.trans('ernestdefoe-facebook-post.admin.settings.group_access_token_help'),
     }))
     .permission(
       () => ({
         icon: 'fab fa-facebook',
-        label: 'Manage Facebook Auto-Post',
+        label: app.translator.trans('ernestdefoe-facebook-post.admin.permissions.manage'),
         permission: 'ernestdefoe-facebook-post.manage',
       }),
       'moderate'
