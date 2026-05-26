@@ -1,5 +1,11 @@
 # Flarum Facebook Auto-Post
 
+[![Floxum](https://floxum.com/extension/ernestdefoe/flarum-facebook-post/badge/name)](https://floxum.com/extension/ernestdefoe/flarum-facebook-post)
+[![Version](https://floxum.com/extension/ernestdefoe/flarum-facebook-post/badge/highest-version)](https://floxum.com/extension/ernestdefoe/flarum-facebook-post)
+[![Downloads](https://floxum.com/extension/ernestdefoe/flarum-facebook-post/badge/downloads)](https://floxum.com/extension/ernestdefoe/flarum-facebook-post)
+[![Review](https://floxum.com/extension/ernestdefoe/flarum-facebook-post/badge/review)](https://floxum.com/extension/ernestdefoe/flarum-facebook-post)
+[![License](https://floxum.com/extension/ernestdefoe/flarum-facebook-post/badge/license)](https://floxum.com/extension/ernestdefoe/flarum-facebook-post)
+
 Automatically publishes an excerpt and link to a Facebook **Page** or **Group** whenever a new discussion is created on your Flarum 2 forum.
 
 ---
