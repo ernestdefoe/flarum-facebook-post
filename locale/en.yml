@@ -17,6 +17,8 @@ ernestdefoe-facebook-post:
       group_id_placeholder: "123456789012345"
       group_access_token_label: Group Access Token
       group_access_token_help: "User Access Token with the publish_to_groups permission. Used when Destination Type is Facebook Group."
+      graph_api_version_label: Graph API Version
+      graph_api_version_help: "The Facebook Graph API version this extension calls (e.g. v19.0). Bump this when Meta announces deprecation of the current version — see https://developers.facebook.com/docs/graph-api/changelog. Format: v<major>.<minor>."
     tag_selector:
       title: Post to Facebook for Primary Tags
       help: Select which primary tags trigger a Facebook post.

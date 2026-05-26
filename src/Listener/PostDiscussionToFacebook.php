@@ -2,19 +2,34 @@
 
 namespace Ernestdefoe\FacebookPost\Listener;
 
+use Ernestdefoe\FacebookPost\Job\PublishToFacebookJob;
+use Flarum\Http\UrlGenerator;
 use Flarum\Post\Event\Posted;
 use Flarum\Settings\SettingsRepositoryInterface;
-use Flarum\Http\UrlGenerator;
-use Illuminate\Support\Arr;
+use Illuminate\Contracts\Bus\Dispatcher;
 use Psr\Log\LoggerInterface;
 
+/**
+ * Triggered when a new post is created. Decides whether the post is the
+ * opening post of a discussion that should be published to Facebook, and
+ * if so dispatches `PublishToFacebookJob` to do the actual outbound
+ * HTTP off the request thread.
+ *
+ * Cheap work — tag filter, settings lookup, image extraction, message
+ * composition — runs inline so a tag-filtered discussion never costs
+ * the queue a wakeup. The expensive work — two potential 15-second
+ * timeouts against `graph.facebook.com` — moves to the job so the
+ * user's "submit reply" doesn't stall waiting for Facebook.
+ */
 class PostDiscussionToFacebook
 {
     public function __construct(
         protected SettingsRepositoryInterface $settings,
         protected UrlGenerator $url,
         protected LoggerInterface $logger,
-    ) {}
+        protected Dispatcher $bus,
+    ) {
+    }
 
     public function handle(Posted $event): void
     {
@@ -24,7 +39,7 @@ class PostDiscussionToFacebook
             return;
         }
 
-        if (!$this->settings->get('ernestdefoe-facebook-post.enabled')) {
+        if (! $this->settings->get('ernestdefoe-facebook-post.enabled')) {
             return;
         }
 
@@ -40,14 +55,14 @@ class PostDiscussionToFacebook
             $targetLabel = 'Page';
         }
 
-        if (!$accessToken || !$targetId) {
+        if (! $accessToken || ! $targetId) {
             $this->logger->warning("[FacebookPost] Missing Facebook {$targetLabel} access token or ID — post skipped.");
             return;
         }
 
         $discussion = $post->discussion;
 
-        if (!$this->passesTagFilter($discussion)) {
+        if (! $this->passesTagFilter($discussion)) {
             $this->logger->info('[FacebookPost] Skipped — discussion tag not in allowed list.');
             return;
         }
@@ -64,18 +79,23 @@ class PostDiscussionToFacebook
 
         $message = "📢 {$discussion->title}\n\n{$snippet}";
 
-        // Try to get an image from the post content, then fall back to the
-        // og-image default. If we have an image, post as a photo (reliable).
-        // If not, post as a link post (relies on Facebook OG scraping).
+        // Prefer an image embedded in the post; fall back to the
+        // ernestdefoe/og-image setting when present. og-image is an
+        // optional integration declared in composer.json's `suggest`
+        // block, so settings->get returns null when it isn't installed
+        // and the `??` lands cleanly on an empty string — the job
+        // then degrades to a link post.
         $imageUrl = $this->extractImageFromHtml($contentHtml)
             ?: (string) ($this->settings->get('ernestdefoe-og-image.default_image') ?? '');
 
-        if ($imageUrl) {
-            $caption = "{$message}\n\n🔗 {$link}";
-            $this->publishPhoto($targetId, $accessToken, $imageUrl, $caption, $targetLabel);
-        } else {
-            $this->publishLink($targetId, $accessToken, $message, $link, $targetLabel);
-        }
+        $this->bus->dispatch(new PublishToFacebookJob(
+            targetId:    (string) $targetId,
+            accessToken: (string) $accessToken,
+            targetLabel: $targetLabel,
+            message:     $message,
+            link:        $link,
+            imageUrl:    $imageUrl !== '' ? $imageUrl : null,
+        ));
     }
 
     private function passesTagFilter(object $discussion): bool
@@ -90,8 +110,8 @@ class PostDiscussionToFacebook
         $allowedIds = array_map('strval', $allowedIds);
 
         try {
-            $tagIds = $discussion->tags->pluck('id')->map(fn($id) => (string) $id)->toArray();
-            return !empty(array_intersect($allowedIds, $tagIds));
+            $tagIds = $discussion->tags->pluck('id')->map(fn ($id) => (string) $id)->toArray();
+            return ! empty(array_intersect($allowedIds, $tagIds));
         } catch (\Throwable) {
             return true;
         }
@@ -101,113 +121,10 @@ class PostDiscussionToFacebook
     {
         if (preg_match('/<img[^>]+src=["\']([^"\']+)["\'][^>]*/i', $html, $matches)) {
             $src = $matches[1];
-            if (!str_starts_with($src, 'data:')) {
+            if (! str_starts_with($src, 'data:')) {
                 return $src;
             }
         }
         return null;
-    }
-
-    /**
-     * Post as a photo — image is uploaded directly to Facebook so it always
-     * displays regardless of domain verification or OG scraping behaviour.
-     */
-    private function publishPhoto(
-        string $targetId,
-        string $accessToken,
-        string $imageUrl,
-        string $caption,
-        string $targetLabel = 'Page'
-    ): void {
-        $endpoint = "https://graph.facebook.com/v19.0/{$targetId}/photos";
-
-        $payload = [
-            'url'          => $imageUrl,
-            'caption'      => $caption,
-            'access_token' => $accessToken,
-        ];
-
-        $response = $this->post($endpoint, $payload);
-
-        if ($response['error']) {
-            $this->logger->error("[FacebookPost] Photo post cURL error: {$response['error']}");
-            // Fall back to link post
-            $this->logger->info('[FacebookPost] Falling back to link post.');
-            $this->publishLink($targetId, $accessToken, $caption, '', $targetLabel);
-            return;
-        }
-
-        if ($response['http_code'] !== 200 || !empty($response['decoded']['error'])) {
-            $errMsg = Arr::get($response['decoded'], 'error.message', $response['body']);
-            $this->logger->error("[FacebookPost] Photo post API error (HTTP {$response['http_code']}): {$errMsg}");
-            // Fall back to link post
-            $this->logger->info('[FacebookPost] Falling back to link post.');
-            $this->publishLink($targetId, $accessToken, $caption, '', $targetLabel);
-            return;
-        }
-
-        $postId = Arr::get($response['decoded'], 'post_id', Arr::get($response['decoded'], 'id', 'unknown'));
-        $this->logger->info("[FacebookPost] Successfully posted photo to {$targetLabel}. Post ID: {$postId}");
-    }
-
-    /**
-     * Post as a link — relies on Facebook scraping OG tags from the URL.
-     */
-    private function publishLink(
-        string $targetId,
-        string $accessToken,
-        string $message,
-        string $link,
-        string $targetLabel = 'Page'
-    ): void {
-        $endpoint = "https://graph.facebook.com/v19.0/{$targetId}/feed";
-
-        $payload = [
-            'message'      => $message,
-            'access_token' => $accessToken,
-        ];
-
-        if ($link !== '') {
-            $payload['link'] = $link;
-        }
-
-        $response = $this->post($endpoint, $payload);
-
-        if ($response['error']) {
-            $this->logger->error("[FacebookPost] Link post cURL error: {$response['error']}");
-            return;
-        }
-
-        if ($response['http_code'] !== 200 || !empty($response['decoded']['error'])) {
-            $errMsg = Arr::get($response['decoded'], 'error.message', $response['body']);
-            $this->logger->error("[FacebookPost] {$targetLabel} API error (HTTP {$response['http_code']}): {$errMsg}");
-        } else {
-            $postId = Arr::get($response['decoded'], 'id', 'unknown');
-            $this->logger->info("[FacebookPost] Successfully posted link to {$targetLabel}. Post ID: {$postId}");
-        }
-    }
-
-    private function post(string $endpoint, array $payload): array
-    {
-        $ch = curl_init($endpoint);
-        curl_setopt_array($ch, [
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => http_build_query($payload),
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 15,
-            CURLOPT_SSL_VERIFYPEER => true,
-        ]);
-
-        $body    = curl_exec($ch);
-        $code    = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlErr = curl_error($ch);
-        curl_close($ch);
-
-        return [
-            'body'      => (string) $body,
-            'http_code' => $code,
-            'error'     => $curlErr,
-            'decoded'   => json_decode((string) $body, true) ?? [],
-        ];
     }
 }
