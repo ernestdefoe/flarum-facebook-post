@@ -12,7 +12,12 @@ app.initializers.add(EXT, () => {
     // owns the admin surface. The previous build kept these in a
     // sibling `extend.js` that was never imported — they shipped as
     // dead source and never reached the admin UI.
-    app.extensionData
+    //
+    // Note: Flarum 2 exposes the admin registry as `app.registry` (the
+    // class is `AdminRegistry`). Flarum 1.x called this `extensionData`
+    // and that's still the name in older docs — be careful when
+    // copy-pasting examples from elsewhere.
+    app.registry
         .for(EXT)
         .registerSetting({
             setting: `${EXT}.enabled`,
