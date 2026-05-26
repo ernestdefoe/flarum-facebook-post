@@ -25,5 +25,3 @@ ernestdefoe-facebook-post:
       help_all: Leave all unchecked to post every new discussion regardless of tag.
       no_tags: No primary tags found. Install and configure the Flarum Tags extension first.
       saving: Saving…
-    permissions:
-      manage: Manage Facebook Auto-Post

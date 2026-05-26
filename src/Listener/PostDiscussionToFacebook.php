@@ -43,20 +43,25 @@ class PostDiscussionToFacebook
             return;
         }
 
-        $destinationType = $this->settings->get('ernestdefoe-facebook-post.destination_type', 'page');
+        // The destination-type flag is the ONLY identifying info we
+        // pass to the job — the access token + numeric target ID are
+        // re-read from settings inside the job's `handle()` so they
+        // never get serialised into the queue store. See the security
+        // note on PublishToFacebookJob's class docblock.
+        $destinationType = $this->settings->get('ernestdefoe-facebook-post.destination_type', 'page') === 'group'
+            ? 'group'
+            : 'page';
 
-        if ($destinationType === 'group') {
-            $accessToken = $this->settings->get('ernestdefoe-facebook-post.group_access_token');
-            $targetId    = $this->settings->get('ernestdefoe-facebook-post.group_id');
-            $targetLabel = 'Group';
-        } else {
-            $accessToken = $this->settings->get('ernestdefoe-facebook-post.page_access_token');
-            $targetId    = $this->settings->get('ernestdefoe-facebook-post.page_id');
-            $targetLabel = 'Page';
-        }
-
-        if (! $accessToken || ! $targetId) {
-            $this->logger->warning("[FacebookPost] Missing Facebook {$targetLabel} access token or ID — post skipped.");
+        // Early-out if the destination isn't configured. We check
+        // here so a guaranteed-to-fail dispatch never costs the queue
+        // a wakeup; the job re-checks the same settings at handle
+        // time for the case where they change between dispatch and
+        // execution (operator wipes the token while jobs are queued).
+        $tokenKey = $destinationType === 'group' ? 'group_access_token' : 'page_access_token';
+        $idKey    = $destinationType === 'group' ? 'group_id'           : 'page_id';
+        if (! $this->settings->get("ernestdefoe-facebook-post.{$tokenKey}")
+            || ! $this->settings->get("ernestdefoe-facebook-post.{$idKey}")) {
+            $this->logger->warning("[FacebookPost] Missing Facebook {$destinationType} access token or ID — post skipped.");
             return;
         }
 
@@ -89,12 +94,10 @@ class PostDiscussionToFacebook
             ?: (string) ($this->settings->get('ernestdefoe-og-image.default_image') ?? '');
 
         $this->bus->dispatch(new PublishToFacebookJob(
-            targetId:    (string) $targetId,
-            accessToken: (string) $accessToken,
-            targetLabel: $targetLabel,
-            message:     $message,
-            link:        $link,
-            imageUrl:    $imageUrl !== '' ? $imageUrl : null,
+            destinationType: $destinationType,
+            message:         $message,
+            link:            $link,
+            imageUrl:        $imageUrl !== '' ? $imageUrl : null,
         ));
     }
 
@@ -109,10 +112,21 @@ class PostDiscussionToFacebook
 
         $allowedIds = array_map('strval', $allowedIds);
 
+        // The default-to-allow fallback covers the case where the
+        // tags extension was uninstalled with an allow-list still
+        // configured (`$discussion->tags` becomes a missing
+        // relation), or a transient query error. Either case is
+        // operator-actionable, so log it as a warning instead of
+        // silently posting every new discussion — an operator who
+        // notices a sudden flood of Facebook posts deserves to find
+        // the cause in flarum.log without bisecting the code.
         try {
             $tagIds = $discussion->tags->pluck('id')->map(fn ($id) => (string) $id)->toArray();
             return ! empty(array_intersect($allowedIds, $tagIds));
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            $this->logger->warning(
+                "[FacebookPost] Tag filter error — defaulting to allow: {$e->getMessage()}"
+            );
             return true;
         }
     }

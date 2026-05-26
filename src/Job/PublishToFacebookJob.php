@@ -25,6 +25,19 @@ use Psr\Log\LoggerInterface;
  * but the structural separation means switching to `redis`/`database`/
  * `sqs` in `config.php` flips publishing to truly async with zero code
  * changes. See README "Queue driver" section for the operator guide.
+ *
+ * Security note: NOTHING secret is carried on the job. Laravel
+ * serialises every public property of a `ShouldQueue` job into the
+ * queue store (the `jobs` table on `database`, the Redis keyspace on
+ * `redis`, the SQS message body on `sqs`) — so a Facebook access
+ * token in the constructor would land in that store in plaintext, and
+ * a read-only DB exposure or a Redis dump would hand an attacker a
+ * live posting credential. The token + numeric target ID are read
+ * from `SettingsRepositoryInterface` inside `handle()` instead. The
+ * constructor carries only the per-discussion data the settings
+ * don't know about (`message`, `link`, `imageUrl`) plus a non-secret
+ * `'page'|'group'` flag so the job knows which side of the settings
+ * branch to read on the queue-worker side.
  */
 class PublishToFacebookJob implements ShouldQueue
 {
@@ -36,9 +49,7 @@ class PublishToFacebookJob implements ShouldQueue
     public int $timeout = 60;
 
     public function __construct(
-        public readonly string $targetId,
-        public readonly string $accessToken,
-        public readonly string $targetLabel,
+        public readonly string $destinationType,
         public readonly string $message,
         public readonly string $link,
         public readonly ?string $imageUrl,
@@ -50,6 +61,23 @@ class PublishToFacebookJob implements ShouldQueue
         Client $http,
         LoggerInterface $logger,
     ): void {
+        $type = $this->destinationType === 'group' ? 'group' : 'page';
+
+        if ($type === 'group') {
+            $accessToken = (string) $settings->get('ernestdefoe-facebook-post.group_access_token');
+            $targetId    = (string) $settings->get('ernestdefoe-facebook-post.group_id');
+            $targetLabel = 'Group';
+        } else {
+            $accessToken = (string) $settings->get('ernestdefoe-facebook-post.page_access_token');
+            $targetId    = (string) $settings->get('ernestdefoe-facebook-post.page_id');
+            $targetLabel = 'Page';
+        }
+
+        if ($accessToken === '' || $targetId === '') {
+            $logger->warning("[FacebookPost] Missing Facebook {$targetLabel} access token or ID — job skipped.");
+            return;
+        }
+
         $version = trim((string) $settings->get(
             'ernestdefoe-facebook-post.graph_api_version',
             'v19.0'
@@ -60,15 +88,15 @@ class PublishToFacebookJob implements ShouldQueue
 
         if ($this->imageUrl !== null && $this->imageUrl !== '') {
             $caption = "{$this->message}\n\n🔗 {$this->link}";
-            $ok = $this->publishPhoto($http, $logger, $version, $caption);
+            $ok = $this->publishPhoto($http, $logger, $version, $targetId, $accessToken, $targetLabel, $caption);
             if (! $ok) {
                 $logger->info('[FacebookPost] Falling back to link post.');
-                $this->publishLink($http, $logger, $version, $caption, '');
+                $this->publishLink($http, $logger, $version, $targetId, $accessToken, $targetLabel, $caption, '');
             }
             return;
         }
 
-        $this->publishLink($http, $logger, $version, $this->message, $this->link);
+        $this->publishLink($http, $logger, $version, $targetId, $accessToken, $targetLabel, $this->message, $this->link);
     }
 
     /**
@@ -81,14 +109,17 @@ class PublishToFacebookJob implements ShouldQueue
         Client $http,
         LoggerInterface $logger,
         string $version,
+        string $targetId,
+        string $accessToken,
+        string $targetLabel,
         string $caption,
     ): bool {
-        $endpoint = "https://graph.facebook.com/{$version}/{$this->targetId}/photos";
+        $endpoint = "https://graph.facebook.com/{$version}/{$targetId}/photos";
 
         $payload = [
             'url'          => $this->imageUrl,
             'caption'      => $caption,
-            'access_token' => $this->accessToken,
+            'access_token' => $accessToken,
         ];
 
         try {
@@ -114,7 +145,7 @@ class PublishToFacebookJob implements ShouldQueue
         }
 
         $postId = Arr::get($decoded, 'post_id', Arr::get($decoded, 'id', 'unknown'));
-        $logger->info("[FacebookPost] Successfully posted photo to {$this->targetLabel}. Post ID: {$postId}");
+        $logger->info("[FacebookPost] Successfully posted photo to {$targetLabel}. Post ID: {$postId}");
         return true;
     }
 
@@ -126,14 +157,17 @@ class PublishToFacebookJob implements ShouldQueue
         Client $http,
         LoggerInterface $logger,
         string $version,
+        string $targetId,
+        string $accessToken,
+        string $targetLabel,
         string $message,
         string $link,
     ): void {
-        $endpoint = "https://graph.facebook.com/{$version}/{$this->targetId}/feed";
+        $endpoint = "https://graph.facebook.com/{$version}/{$targetId}/feed";
 
         $payload = [
             'message'      => $message,
-            'access_token' => $this->accessToken,
+            'access_token' => $accessToken,
         ];
         if ($link !== '') {
             $payload['link'] = $link;
@@ -157,11 +191,11 @@ class PublishToFacebookJob implements ShouldQueue
 
         if ($status !== 200 || ! empty($decoded['error'])) {
             $err = Arr::get($decoded, 'error.message', $body);
-            $logger->error("[FacebookPost] {$this->targetLabel} API error (HTTP {$status}): {$err}");
+            $logger->error("[FacebookPost] {$targetLabel} API error (HTTP {$status}): {$err}");
             return;
         }
 
         $postId = Arr::get($decoded, 'id', 'unknown');
-        $logger->info("[FacebookPost] Successfully posted link to {$this->targetLabel}. Post ID: {$postId}");
+        $logger->info("[FacebookPost] Successfully posted link to {$targetLabel}. Post ID: {$postId}");
     }
 }

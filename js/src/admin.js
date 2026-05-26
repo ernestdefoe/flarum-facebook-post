@@ -68,15 +68,19 @@ app.initializers.add(EXT, () => {
             label: T('settings.graph_api_version_label'),
             help: T('settings.graph_api_version_help'),
             placeholder: 'v19.0',
-        })
-        .registerPermission(
-            {
-                icon: 'fab fa-facebook',
-                label: T('permissions.manage'),
-                permission: `${EXT}.manage`,
-            },
-            'moderate'
-        );
+        });
+    // No `registerPermission` here on purpose. The configuration
+    // surface is the settings panel, which Flarum already gates on
+    // `administrate`; there is no per-actor authz decision the
+    // extension makes at runtime that a `<slug>.manage` permission
+    // could meaningfully change. Adding a cosmetic row to the
+    // permission matrix would imply the operator can delegate
+    // Facebook-config rights to moderators — they can't, and the
+    // empty checkbox would be misleading. If a later release adds a
+    // real per-user gate (e.g. a "force this discussion to publish"
+    // action), wire the permission then and add the matching
+    // `(new Extend\Policy())->...` or `assertCan(...)` on the same
+    // PR — never one without the other.
 
     // The tag selector is a custom component, not a simple setting row,
     // so it goes into the Settings section via the ExtensionPage hook.
