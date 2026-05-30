@@ -276,6 +276,13 @@ To ensure a fallback image is always available, install `ernestdefoe/og-image` a
 
 ---
 
+## Support
+
+Questions, bug reports, and feature requests:
+
+- **Support forum:** https://ernestdefoe.online
+- **Issues:** https://github.com/ernestdefoe/flarum-facebook-post/issues
+
 ## License
 
 MIT © Ernestdefoe
