@@ -8,7 +8,6 @@ use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Arr;
 use Psr\Log\LoggerInterface;
 
@@ -43,10 +42,21 @@ class PublishToFacebookJob implements ShouldQueue
 {
     use Queueable;
     use InteractsWithQueue;
-    use SerializesModels;
 
     public int $tries   = 3;
     public int $timeout = 60;
+
+    /**
+     * Wait 30s, then 2m, then 5m between retries instead of firing the next
+     * attempt immediately — a transient Facebook/Graph outage or rate-limit
+     * gets breathing room rather than three back-to-back failures.
+     *
+     * @return int[]
+     */
+    public function backoff(): array
+    {
+        return [30, 120, 300];
+    }
 
     public function __construct(
         public readonly string $destinationType,
@@ -116,12 +126,36 @@ class PublishToFacebookJob implements ShouldQueue
     ): bool {
         $endpoint = "https://graph.facebook.com/{$version}/{$targetId}/photos";
 
-        $payload = [
+        $decoded = $this->graphPost($http, $logger, $endpoint, [
             'url'          => $this->imageUrl,
             'caption'      => $caption,
             'access_token' => $accessToken,
-        ];
+        ], "{$targetLabel} photo post");
 
+        if ($decoded === null) {
+            return false;
+        }
+
+        $postId = Arr::get($decoded, 'post_id', Arr::get($decoded, 'id', 'unknown'));
+        $logger->info("[FacebookPost] Successfully posted photo to {$targetLabel}. Post ID: {$postId}");
+        return true;
+    }
+
+    /**
+     * Shared Graph POST: form-encodes the payload, applies the standard
+     * timeouts, and returns the decoded body on a clean 200, or null on any
+     * transport / HTTP / API-error outcome (logged with the given context).
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>|null
+     */
+    private function graphPost(
+        Client $http,
+        LoggerInterface $logger,
+        string $endpoint,
+        array $payload,
+        string $context,
+    ): ?array {
         try {
             $response = $http->post($endpoint, [
                 'form_params'     => $payload,
@@ -130,8 +164,8 @@ class PublishToFacebookJob implements ShouldQueue
                 'http_errors'     => false,
             ]);
         } catch (GuzzleException $e) {
-            $logger->error("[FacebookPost] Photo post transport error: {$e->getMessage()}");
-            return false;
+            $logger->error("[FacebookPost] {$context} transport error: {$e->getMessage()}");
+            return null;
         }
 
         $status  = $response->getStatusCode();
@@ -140,13 +174,11 @@ class PublishToFacebookJob implements ShouldQueue
 
         if ($status !== 200 || ! empty($decoded['error'])) {
             $err = Arr::get($decoded, 'error.message', $body);
-            $logger->error("[FacebookPost] Photo post API error (HTTP {$status}): {$err}");
-            return false;
+            $logger->error("[FacebookPost] {$context} API error (HTTP {$status}): {$err}");
+            return null;
         }
 
-        $postId = Arr::get($decoded, 'post_id', Arr::get($decoded, 'id', 'unknown'));
-        $logger->info("[FacebookPost] Successfully posted photo to {$targetLabel}. Post ID: {$postId}");
-        return true;
+        return $decoded;
     }
 
     /**
@@ -173,25 +205,8 @@ class PublishToFacebookJob implements ShouldQueue
             $payload['link'] = $link;
         }
 
-        try {
-            $response = $http->post($endpoint, [
-                'form_params'     => $payload,
-                'timeout'         => 15,
-                'connect_timeout' => 5,
-                'http_errors'     => false,
-            ]);
-        } catch (GuzzleException $e) {
-            $logger->error("[FacebookPost] Link post transport error: {$e->getMessage()}");
-            return;
-        }
-
-        $status  = $response->getStatusCode();
-        $body    = (string) $response->getBody();
-        $decoded = json_decode($body, true) ?? [];
-
-        if ($status !== 200 || ! empty($decoded['error'])) {
-            $err = Arr::get($decoded, 'error.message', $body);
-            $logger->error("[FacebookPost] {$targetLabel} API error (HTTP {$status}): {$err}");
+        $decoded = $this->graphPost($http, $logger, $endpoint, $payload, "{$targetLabel} link post");
+        if ($decoded === null) {
             return;
         }
 

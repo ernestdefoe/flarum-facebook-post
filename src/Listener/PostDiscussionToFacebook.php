@@ -112,22 +112,20 @@ class PostDiscussionToFacebook
 
         $allowedIds = array_map('strval', $allowedIds);
 
-        // The default-to-allow fallback covers the case where the
-        // tags extension was uninstalled with an allow-list still
-        // configured (`$discussion->tags` becomes a missing
-        // relation), or a transient query error. Either case is
-        // operator-actionable, so log it as a warning instead of
-        // silently posting every new discussion — an operator who
-        // notices a sudden flood of Facebook posts deserves to find
-        // the cause in flarum.log without bisecting the code.
+        // Fail SAFE: when an allow-list IS configured but the tags can't be
+        // read (tags extension uninstalled with the list still set, or a
+        // transient query error), default to SKIP rather than allow — a misread
+        // filter must never become a flood of every new discussion hitting
+        // Facebook. The warning makes the cause findable in flarum.log.
         try {
             $tagIds = $discussion->tags->pluck('id')->map(fn ($id) => (string) $id)->toArray();
             return ! empty(array_intersect($allowedIds, $tagIds));
         } catch (\Throwable $e) {
             $this->logger->warning(
-                "[FacebookPost] Tag filter error — defaulting to allow: {$e->getMessage()}"
+                "[FacebookPost] Tag filter error — skipping this post (an allow-list is "
+                . "configured but the discussion's tags couldn't be read): {$e->getMessage()}"
             );
-            return true;
+            return false;
         }
     }
 
