@@ -3,10 +3,13 @@
 namespace Ernestdefoe\FacebookPost\Listener;
 
 use Ernestdefoe\FacebookPost\Job\PublishToFacebookJob;
+use Flarum\Discussion\Discussion;
 use Flarum\Http\UrlGenerator;
 use Flarum\Post\Event\Posted;
+use Flarum\Post\Post;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Illuminate\Contracts\Bus\Dispatcher;
+use Flarum\User\Guest;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -31,14 +34,45 @@ class PostDiscussionToFacebook
     ) {
     }
 
-    public function handle(Posted $event): void
+    /**
+     * Listens to core's Posted and, when flarum/approval is installed, to
+     * its PostWasApproved — a discussion held for moderation goes out when
+     * a moderator approves it, not when it is written.
+     */
+    public function handle(object $event): void
     {
-        $post = $event->post;
+        $post = $event->post ?? null;
 
-        if ((int) $post->number !== 1) {
+        if (! $post instanceof Post || (int) $post->number !== 1) {
             return;
         }
 
+        if ($event instanceof Posted) {
+            // Held for approval (flarum/approval sets is_approved = false
+            // before the post is saved). It is published on approval.
+            if (array_key_exists('is_approved', $post->getAttributes()) && ! $post->is_approved) {
+                return;
+            }
+
+            $this->publish($post);
+
+            return;
+        }
+
+        // PostWasApproved. Approval's own listener marks the discussion
+        // approved and saves it; if it hasn't run yet, publish once it has.
+        $discussion = $post->discussion;
+        if ($discussion && ! $discussion->is_approved) {
+            $discussion->afterSave(fn () => $this->publish($post));
+
+            return;
+        }
+
+        $this->publish($post);
+    }
+
+    private function publish(Post $post): void
+    {
         if (! $this->settings->get('ernestdefoe-facebook-post.enabled')) {
             return;
         }
@@ -67,6 +101,14 @@ class PostDiscussionToFacebook
 
         $discussion = $post->discussion;
 
+        // The page is public: only share what a logged-out visitor could
+        // read on the forum. This rules out restricted tags, private
+        // discussions and anything still awaiting approval or hidden.
+        if (! $discussion || ! Discussion::query()->whereVisibleTo(new Guest())->whereKey($discussion->id)->exists()) {
+            $this->logger->info('[FacebookPost] Skipped — guests cannot see this discussion.');
+            return;
+        }
+
         if (! $this->passesTagFilter($discussion)) {
             $this->logger->info('[FacebookPost] Skipped — discussion tag not in allowed list.');
             return;
@@ -77,7 +119,7 @@ class PostDiscussionToFacebook
         ]);
 
         $contentHtml = $post->formatContent();
-        $contentRaw  = strip_tags($contentHtml);
+        $contentRaw  = strip_tags($this->withoutSpoilers($contentHtml));
         $snippet     = mb_strlen($contentRaw) > 200
             ? mb_substr($contentRaw, 0, 197) . '…'
             : $contentRaw;
@@ -127,6 +169,36 @@ class PostDiscussionToFacebook
             );
             return false;
         }
+    }
+
+    /**
+     * Spoilers (inline `||text||` and `>!` blocks) are hidden until clicked
+     * on the forum; stripping their tags would print them in the snippet.
+     */
+    private function withoutSpoilers(string $html): string
+    {
+        if (! str_contains($html, 'spoiler')) {
+            return $html;
+        }
+
+        $doc = new \DOMDocument();
+        $previous = libxml_use_internal_errors(true);
+        $doc->loadHTML('<?xml encoding="UTF-8"><div>' . $html . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        $spoilers = (new \DOMXPath($doc))->query('//*[contains(concat(" ", normalize-space(@class), " "), " spoiler ")]');
+        foreach (iterator_to_array($spoilers) as $node) {
+            $node->parentNode?->removeChild($node);
+        }
+
+        $root = $doc->getElementsByTagName('div')->item(0);
+        $out = '';
+        foreach ($root?->childNodes ?? [] as $child) {
+            $out .= $doc->saveHTML($child);
+        }
+
+        return $out;
     }
 
     private function extractImageFromHtml(string $html): ?string

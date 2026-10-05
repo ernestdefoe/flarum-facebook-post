@@ -18,6 +18,7 @@ Automatically publishes an excerpt and link to a Facebook **Page** or **Group** 
 - Toggle on/off from the Admin panel — no code changes needed
 - Credentials stored securely in Flarum's settings store
 - Optional tag filter — only post discussions in specific categories
+- Only shares what a logged-out visitor can read: discussions in restricted tags, private discussions and anything awaiting approval are never posted. A discussion held for moderation is posted when it is approved
 - Works with [ernestdefoe/og-image](https://github.com/ernestdefoe/og-image) to use a default image when the post has no embedded images
 - Logs success and errors to Flarum's application log (`storage/logs/`)
 

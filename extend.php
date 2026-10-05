@@ -12,7 +12,9 @@ return [
     new Extend\Locales(__DIR__ . '/locale'),
 
     (new Extend\Event())
-        ->listen(Posted::class, PostDiscussionToFacebook::class),
+        ->listen(Posted::class, PostDiscussionToFacebook::class)
+        // flarum/approval's event, by name so the extension stays optional.
+        ->listen('Flarum\\Approval\\Event\\PostWasApproved', PostDiscussionToFacebook::class),
 
     (new Extend\Settings())
         ->default('ernestdefoe-facebook-post.enabled', false)
