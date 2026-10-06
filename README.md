@@ -284,6 +284,10 @@ Questions, bug reports, and feature requests:
 - **Support forum:** https://ernestdefoe.online
 - **Issues:** https://github.com/ernestdefoe/flarum-facebook-post/issues
 
+## Discuss
+
+Questions, ideas and release notes: [Facebook Auto Post on discuss.flarum.org](https://discuss.flarum.org/d/39233-facebook-auto-post).
+
 ## License
 
 MIT © Ernestdefoe
