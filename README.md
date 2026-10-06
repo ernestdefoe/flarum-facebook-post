@@ -279,10 +279,9 @@ To ensure a fallback image is always available, install `ernestdefoe/og-image` a
 
 ## Support
 
-Questions, bug reports, and feature requests:
-
-- **Support forum:** https://ernestdefoe.online
-- **Issues:** https://github.com/ernestdefoe/flarum-facebook-post/issues
+- **Support forum:** [Facebook Page Auto-Post on ernestdefoe.online](https://ernestdefoe.online/d/5)
+- **Flarum community:** [Facebook Page Auto-Post on discuss.flarum.org](https://discuss.flarum.org/d/39233-facebook-auto-post)
+- **Bug reports:** [GitHub issues](https://github.com/ernestdefoe/flarum-facebook-post/issues)
 
 ## Discuss
 
