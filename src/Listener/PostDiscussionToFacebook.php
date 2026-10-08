@@ -6,7 +6,7 @@ use Ernestdefoe\FacebookPost\Job\PublishToFacebookJob;
 use Flarum\Discussion\Discussion;
 use Flarum\Http\UrlGenerator;
 use Flarum\Post\Event\Posted;
-use Flarum\Post\Post;
+use Flarum\Post\CommentPost;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Illuminate\Contracts\Bus\Dispatcher;
 use Flarum\User\Guest;
@@ -43,14 +43,15 @@ class PostDiscussionToFacebook
     {
         $post = $event->post ?? null;
 
-        if (! $post instanceof Post || (int) $post->number !== 1) {
+        // A discussion's opening post is always a comment.
+        if (! $post instanceof CommentPost || (int) $post->number !== 1) {
             return;
         }
 
         if ($event instanceof Posted) {
             // Held for approval (flarum/approval sets is_approved = false
             // before the post is saved). It is published on approval.
-            if (array_key_exists('is_approved', $post->getAttributes()) && ! $post->is_approved) {
+            if (array_key_exists('is_approved', $post->getAttributes()) && ! $post->getAttribute('is_approved')) {
                 return;
             }
 
@@ -62,7 +63,7 @@ class PostDiscussionToFacebook
         // PostWasApproved. Approval's own listener marks the discussion
         // approved and saves it; if it hasn't run yet, publish once it has.
         $discussion = $post->discussion;
-        if ($discussion && ! $discussion->is_approved) {
+        if ($discussion && ! $discussion->getAttribute('is_approved')) {
             $discussion->afterSave(fn () => $this->publish($post));
 
             return;
@@ -71,7 +72,7 @@ class PostDiscussionToFacebook
         $this->publish($post);
     }
 
-    private function publish(Post $post): void
+    private function publish(CommentPost $post): void
     {
         if (! $this->settings->get('ernestdefoe-facebook-post.enabled')) {
             return;
@@ -195,7 +196,7 @@ class PostDiscussionToFacebook
 
         $root = $doc->getElementsByTagName('div')->item(0);
         $out = '';
-        foreach ($root?->childNodes ?? [] as $child) {
+        foreach ($root->childNodes ?? [] as $child) {
             $out .= $doc->saveHTML($child);
         }
 
