@@ -1,15 +1,15 @@
 <?php
 
-use Flarum\Extend;
 use Ernestdefoe\FacebookPost\Listener\PostDiscussionToFacebook;
+use Flarum\Extend;
 use Flarum\Post\Event\Posted;
 
 return [
     (new Extend\Frontend('admin'))
-        ->js(__DIR__ . '/js/dist/admin.js')
-        ->css(__DIR__ . '/less/admin.less'),
+        ->js(__DIR__.'/js/dist/admin.js')
+        ->css(__DIR__.'/less/admin.less'),
 
-    new Extend\Locales(__DIR__ . '/locale'),
+    new Extend\Locales(__DIR__.'/locale'),
 
     (new Extend\Event())
         ->listen(Posted::class, PostDiscussionToFacebook::class)

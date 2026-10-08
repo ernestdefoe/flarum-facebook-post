@@ -5,11 +5,11 @@ namespace Ernestdefoe\FacebookPost\Listener;
 use Ernestdefoe\FacebookPost\Job\PublishToFacebookJob;
 use Flarum\Discussion\Discussion;
 use Flarum\Http\UrlGenerator;
-use Flarum\Post\Event\Posted;
 use Flarum\Post\CommentPost;
+use Flarum\Post\Event\Posted;
 use Flarum\Settings\SettingsRepositoryInterface;
-use Illuminate\Contracts\Bus\Dispatcher;
 use Flarum\User\Guest;
+use Illuminate\Contracts\Bus\Dispatcher;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -93,10 +93,11 @@ class PostDiscussionToFacebook
         // time for the case where they change between dispatch and
         // execution (operator wipes the token while jobs are queued).
         $tokenKey = $destinationType === 'group' ? 'group_access_token' : 'page_access_token';
-        $idKey    = $destinationType === 'group' ? 'group_id'           : 'page_id';
+        $idKey = $destinationType === 'group' ? 'group_id' : 'page_id';
         if (! $this->settings->get("ernestdefoe-facebook-post.{$tokenKey}")
             || ! $this->settings->get("ernestdefoe-facebook-post.{$idKey}")) {
             $this->logger->warning("[FacebookPost] Missing Facebook {$destinationType} access token or ID — post skipped.");
+
             return;
         }
 
@@ -107,23 +108,25 @@ class PostDiscussionToFacebook
         // discussions and anything still awaiting approval or hidden.
         if (! $discussion || ! Discussion::query()->whereVisibleTo(new Guest())->whereKey($discussion->id)->exists()) {
             $this->logger->info('[FacebookPost] Skipped — guests cannot see this discussion.');
+
             return;
         }
 
         if (! $this->passesTagFilter($discussion)) {
             $this->logger->info('[FacebookPost] Skipped — discussion tag not in allowed list.');
+
             return;
         }
 
         $link = $this->url->to('forum')->route('discussion', [
-            'id' => $discussion->id . '-' . $discussion->slug,
+            'id' => $discussion->id.'-'.$discussion->slug,
         ]);
 
         $contentHtml = $post->formatContent();
         // Decoded: Facebook shows text, so &amp; must arrive as &.
-        $contentRaw  = html_entity_decode(strip_tags($this->withoutSpoilers($contentHtml)), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $snippet     = mb_strlen($contentRaw) > 200
-            ? mb_substr($contentRaw, 0, 197) . '…'
+        $contentRaw = html_entity_decode(strip_tags($this->withoutSpoilers($contentHtml)), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $snippet = mb_strlen($contentRaw) > 200
+            ? mb_substr($contentRaw, 0, 197).'…'
             : $contentRaw;
 
         $message = "📢 {$discussion->title}\n\n{$snippet}";
@@ -147,7 +150,7 @@ class PostDiscussionToFacebook
 
     private function passesTagFilter(object $discussion): bool
     {
-        $json       = $this->settings->get('ernestdefoe-facebook-post.allowed_tags', '[]');
+        $json = $this->settings->get('ernestdefoe-facebook-post.allowed_tags', '[]');
         $allowedIds = json_decode($json, true);
 
         if (empty($allowedIds)) {
@@ -163,12 +166,14 @@ class PostDiscussionToFacebook
         // Facebook. The warning makes the cause findable in flarum.log.
         try {
             $tagIds = $discussion->tags->pluck('id')->map(fn ($id) => (string) $id)->toArray();
+
             return ! empty(array_intersect($allowedIds, $tagIds));
         } catch (\Throwable $e) {
             $this->logger->warning(
-                "[FacebookPost] Tag filter error — skipping this post (an allow-list is "
-                . "configured but the discussion's tags couldn't be read): {$e->getMessage()}"
+                '[FacebookPost] Tag filter error — skipping this post (an allow-list is '
+                ."configured but the discussion's tags couldn't be read): {$e->getMessage()}"
             );
+
             return false;
         }
     }
@@ -185,7 +190,7 @@ class PostDiscussionToFacebook
 
         $doc = new \DOMDocument();
         $previous = libxml_use_internal_errors(true);
-        $doc->loadHTML('<?xml encoding="UTF-8"><div>' . $html . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        $doc->loadHTML('<?xml encoding="UTF-8"><div>'.$html.'</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
 
@@ -211,6 +216,7 @@ class PostDiscussionToFacebook
                 return $src;
             }
         }
+
         return null;
     }
 }

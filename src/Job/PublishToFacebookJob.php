@@ -43,7 +43,7 @@ class PublishToFacebookJob implements ShouldQueue
     use Queueable;
     use InteractsWithQueue;
 
-    public int $tries   = 3;
+    public int $tries = 3;
     public int $timeout = 60;
 
     /**
@@ -75,16 +75,17 @@ class PublishToFacebookJob implements ShouldQueue
 
         if ($type === 'group') {
             $accessToken = (string) $settings->get('ernestdefoe-facebook-post.group_access_token');
-            $targetId    = (string) $settings->get('ernestdefoe-facebook-post.group_id');
+            $targetId = (string) $settings->get('ernestdefoe-facebook-post.group_id');
             $targetLabel = 'Group';
         } else {
             $accessToken = (string) $settings->get('ernestdefoe-facebook-post.page_access_token');
-            $targetId    = (string) $settings->get('ernestdefoe-facebook-post.page_id');
+            $targetId = (string) $settings->get('ernestdefoe-facebook-post.page_id');
             $targetLabel = 'Page';
         }
 
         if ($accessToken === '' || $targetId === '') {
             $logger->warning("[FacebookPost] Missing Facebook {$targetLabel} access token or ID — job skipped.");
+
             return;
         }
 
@@ -103,6 +104,7 @@ class PublishToFacebookJob implements ShouldQueue
                 $logger->info('[FacebookPost] Falling back to link post.');
                 $this->publishLink($http, $logger, $version, $targetId, $accessToken, $targetLabel, $caption, '');
             }
+
             return;
         }
 
@@ -127,8 +129,8 @@ class PublishToFacebookJob implements ShouldQueue
         $endpoint = "https://graph.facebook.com/{$version}/{$targetId}/photos";
 
         $decoded = $this->graphPost($http, $logger, $endpoint, [
-            'url'          => $this->imageUrl,
-            'caption'      => $caption,
+            'url' => $this->imageUrl,
+            'caption' => $caption,
             'access_token' => $accessToken,
         ], "{$targetLabel} photo post");
 
@@ -138,6 +140,7 @@ class PublishToFacebookJob implements ShouldQueue
 
         $postId = Arr::get($decoded, 'post_id', Arr::get($decoded, 'id', 'unknown'));
         $logger->info("[FacebookPost] Successfully posted photo to {$targetLabel}. Post ID: {$postId}");
+
         return true;
     }
 
@@ -158,23 +161,25 @@ class PublishToFacebookJob implements ShouldQueue
     ): ?array {
         try {
             $response = $http->post($endpoint, [
-                'form_params'     => $payload,
-                'timeout'         => 15,
+                'form_params' => $payload,
+                'timeout' => 15,
                 'connect_timeout' => 5,
-                'http_errors'     => false,
+                'http_errors' => false,
             ]);
         } catch (GuzzleException $e) {
             $logger->error("[FacebookPost] {$context} transport error: {$e->getMessage()}");
+
             return null;
         }
 
-        $status  = $response->getStatusCode();
-        $body    = (string) $response->getBody();
+        $status = $response->getStatusCode();
+        $body = (string) $response->getBody();
         $decoded = json_decode($body, true) ?? [];
 
         if ($status !== 200 || ! empty($decoded['error'])) {
             $err = Arr::get($decoded, 'error.message', $body);
             $logger->error("[FacebookPost] {$context} API error (HTTP {$status}): {$err}");
+
             return null;
         }
 
@@ -198,7 +203,7 @@ class PublishToFacebookJob implements ShouldQueue
         $endpoint = "https://graph.facebook.com/{$version}/{$targetId}/feed";
 
         $payload = [
-            'message'      => $message,
+            'message' => $message,
             'access_token' => $accessToken,
         ];
         if ($link !== '') {
