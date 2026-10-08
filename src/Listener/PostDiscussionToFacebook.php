@@ -119,7 +119,8 @@ class PostDiscussionToFacebook
         ]);
 
         $contentHtml = $post->formatContent();
-        $contentRaw  = strip_tags($this->withoutSpoilers($contentHtml));
+        // Decoded: Facebook shows text, so &amp; must arrive as &.
+        $contentRaw  = html_entity_decode(strip_tags($this->withoutSpoilers($contentHtml)), ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $snippet     = mb_strlen($contentRaw) > 200
             ? mb_substr($contentRaw, 0, 197) . '…'
             : $contentRaw;
