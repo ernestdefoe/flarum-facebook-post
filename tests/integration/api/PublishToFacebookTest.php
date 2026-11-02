@@ -161,20 +161,31 @@ class PublishToFacebookTest extends TestCase
         $this->assertSame([], $this->sent);
     }
     #[Test]
-    public function the_first_image_is_sent_as_a_photo_with_its_query_string_intact()
+    public function a_forum_hosted_image_is_sent_as_a_photo_with_its_query_string_intact()
     {
-        $this->start(1, 'Look ![cover](https://img.example.com/a.png?w=600&h=400)');
+        $this->start(1, 'Look ![cover](http://localhost/assets/files/a.png?w=600&h=400)');
 
         $this->assertSame('https://graph.facebook.com/v19.0/12345/photos', (string) $this->sent[0]['request']->getUri());
-        $this->assertSame('https://img.example.com/a.png?w=600&h=400', $this->onlyPost()['url']);
+        $this->assertSame('http://localhost/assets/files/a.png?w=600&h=400', $this->onlyPost()['url']);
     }
 
     #[Test]
-    public function a_forum_relative_image_is_made_absolute()
+    public function a_forum_relative_image_is_made_absolute_and_sent_as_a_photo()
     {
         $this->start(1, 'Look ![cover](/assets/files/a.png)');
 
-        $url = $this->onlyPost()['url'];
-        $this->assertMatchesRegularExpression('#^https?://[^/]+.*/assets/files/a\.png$#', $url);
+        $this->assertSame('https://graph.facebook.com/v19.0/12345/photos', (string) $this->sent[0]['request']->getUri());
+        $this->assertSame('http://localhost/assets/files/a.png', $this->onlyPost()['url']);
+    }
+
+    #[Test]
+    public function an_image_from_another_site_falls_back_to_a_link_post()
+    {
+        $this->start(1, 'Look ![cover](https://i.imgur.com/a.png)');
+
+        $this->assertSame('https://graph.facebook.com/v19.0/12345/feed', (string) $this->sent[0]['request']->getUri());
+        $fields = $this->onlyPost();
+        $this->assertArrayNotHasKey('url', $fields);
+        $this->assertStringContainsString('-big-news', $fields['link']);
     }
 }

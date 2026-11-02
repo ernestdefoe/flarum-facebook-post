@@ -215,7 +215,9 @@ class PostDiscussionToFacebook
     /**
      * The first image in the post, as an absolute http(s) URL Facebook can
      * fetch: entities decoded (&amp; in a query string), forum-relative
-     * paths made absolute, and anything else (data:, javascript:, …) dropped.
+     * paths made absolute. Only images hosted on the forum itself are used:
+     * members don't get to choose what off-site picture the Page publishes,
+     * so anything else (other hosts, data:, javascript:, …) is dropped.
      */
     private function extractImageFromHtml(string $html): ?string
     {
@@ -225,14 +227,20 @@ class PostDiscussionToFacebook
 
         $src = html_entity_decode($matches[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
+        $base = $this->url->to('forum')->base();
+
         if (str_starts_with($src, '//')) {
             $src = 'https:'.$src;
         } elseif (str_starts_with($src, '/')) {
-            $src = rtrim($this->url->to('forum')->base(), '/').$src;
+            $src = rtrim($base, '/').$src;
         }
 
         $scheme = strtolower((string) parse_url($src, PHP_URL_SCHEME));
+        $host = strtolower((string) parse_url($src, PHP_URL_HOST));
 
-        return in_array($scheme, ['http', 'https'], true) && parse_url($src, PHP_URL_HOST) ? $src : null;
+        return in_array($scheme, ['http', 'https'], true)
+            && $host !== ''
+            && $host === strtolower((string) parse_url($base, PHP_URL_HOST))
+            ? $src : null;
     }
 }
