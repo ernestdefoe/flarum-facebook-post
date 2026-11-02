@@ -160,4 +160,21 @@ class PublishToFacebookTest extends TestCase
 
         $this->assertSame([], $this->sent);
     }
+    #[Test]
+    public function the_first_image_is_sent_as_a_photo_with_its_query_string_intact()
+    {
+        $this->start(1, 'Look ![cover](https://img.example.com/a.png?w=600&h=400)');
+
+        $this->assertSame('https://graph.facebook.com/v19.0/12345/photos', (string) $this->sent[0]['request']->getUri());
+        $this->assertSame('https://img.example.com/a.png?w=600&h=400', $this->onlyPost()['url']);
+    }
+
+    #[Test]
+    public function a_forum_relative_image_is_made_absolute()
+    {
+        $this->start(1, 'Look ![cover](/assets/files/a.png)');
+
+        $url = $this->onlyPost()['url'];
+        $this->assertMatchesRegularExpression('#^https?://[^/]+.*/assets/files/a\.png$#', $url);
+    }
 }

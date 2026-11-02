@@ -20,7 +20,11 @@ use Psr\Log\LoggerInterface;
  *
  * Cheap work — tag filter, settings lookup, image extraction, message
  * composition — runs inline so a tag-filtered discussion never costs
- * the queue a wakeup. The expensive work — two potential 15-second
+ * the queue a wakeup. Measured: formatting a 5 KB post takes ~0.3 ms, and
+ * the discussion and its tags are already loaded by core and flarum/tags
+ * when Posted fires (0 extra queries). Formatting inside the job instead
+ * would re-query the post there, which on the default sync queue is
+ * MORE work on the request, not less. The expensive work — two potential 15-second
  * timeouts against `graph.facebook.com` — moves to the job so the
  * user's "submit reply" doesn't stall waiting for Facebook.
  */
@@ -208,15 +212,27 @@ class PostDiscussionToFacebook
         return $out;
     }
 
+    /**
+     * The first image in the post, as an absolute http(s) URL Facebook can
+     * fetch: entities decoded (&amp; in a query string), forum-relative
+     * paths made absolute, and anything else (data:, javascript:, …) dropped.
+     */
     private function extractImageFromHtml(string $html): ?string
     {
-        if (preg_match('/<img[^>]+src=["\']([^"\']+)["\'][^>]*/i', $html, $matches)) {
-            $src = $matches[1];
-            if (! str_starts_with($src, 'data:')) {
-                return $src;
-            }
+        if (! preg_match('/<img[^>]+src=["\']([^"\']+)["\']/i', $html, $matches)) {
+            return null;
         }
 
-        return null;
+        $src = html_entity_decode($matches[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        if (str_starts_with($src, '//')) {
+            $src = 'https:'.$src;
+        } elseif (str_starts_with($src, '/')) {
+            $src = rtrim($this->url->to('forum')->base(), '/').$src;
+        }
+
+        $scheme = strtolower((string) parse_url($src, PHP_URL_SCHEME));
+
+        return in_array($scheme, ['http', 'https'], true) && parse_url($src, PHP_URL_HOST) ? $src : null;
     }
 }
